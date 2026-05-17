@@ -455,18 +455,10 @@ def run_single_cycle():
             if timed_out(start_time):
                 raise Exception("Timed out before browser launch")
 
-            browser = p.chromium.launch(
-                headless=True,
-                proxy=playwright_proxy,
-                args=[
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-setuid-sandbox",
-                    "--single-process"
-                ]
-            )
-
+browser = p.chromium.launch(
+    headless=True,
+    proxy=playwright_proxy
+)
             context = browser.new_context(
                 viewport={
                     "width": 1440,
