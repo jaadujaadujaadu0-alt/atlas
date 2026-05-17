@@ -1,0 +1,7 @@
+__pycache__
+*.pyc
+.git
+screenshots
+responses
+html_dump
+.env
