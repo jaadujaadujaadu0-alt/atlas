@@ -455,10 +455,11 @@ def run_single_cycle():
             if timed_out(start_time):
                 raise Exception("Timed out before browser launch")
 
-browser = p.chromium.launch(
-    headless=True,
-    proxy=playwright_proxy
-)
+            browser = p.chromium.launch(
+                headless=True,
+                proxy=playwright_proxy
+            )
+
             context = browser.new_context(
                 viewport={
                     "width": 1440,
@@ -479,10 +480,7 @@ browser = p.chromium.launch(
             if timed_out(start_time):
                 raise Exception("Timed out after site load")
 
-            save_screenshot(
-                page,
-                "01_homepage.png"
-            )
+            save_screenshot(page, "01_homepage.png")
 
             log("Click waitlist")
 
@@ -495,27 +493,13 @@ browser = p.chromium.launch(
 
             page.wait_for_timeout(2000)
 
-            save_screenshot(
-                page,
-                "02_popup_open.png"
-            )
+            save_screenshot(page, "02_popup_open.png")
 
             log("Fill form")
 
-            safe_fill(
-                page.locator("#username"),
-                username
-            )
-
-            safe_fill(
-                page.locator("#fullName"),
-                fullname
-            )
-
-            safe_fill(
-                page.locator("#email"),
-                email
-            )
+            safe_fill(page.locator("#username"), username)
+            safe_fill(page.locator("#fullName"), fullname)
+            safe_fill(page.locator("#email"), email)
 
             page.locator(
                 'select[name="mobileNumberCountry"]'
@@ -526,10 +510,7 @@ browser = p.chromium.launch(
                 phone
             )
 
-            save_screenshot(
-                page,
-                "03_form_filled.png"
-            )
+            save_screenshot(page, "03_form_filled.png")
 
             log("Submit form")
 
@@ -558,10 +539,7 @@ browser = p.chromium.launch(
 
             complete_all_tasks(page)
 
-            save_screenshot(
-                page,
-                "done.png"
-            )
+            save_screenshot(page, "done.png")
 
             result["success"] = True
 
@@ -583,7 +561,6 @@ browser = p.chromium.launch(
             pass
 
         log(json.dumps(result))
-
 
 def worker():
     log("Worker started")
