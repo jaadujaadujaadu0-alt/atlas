@@ -1,0 +1,35 @@
+[phases.setup]
+nixPkgs = [
+  "python312",
+  "python312Packages.pip",
+  "glib",
+  "nss",
+  "nspr",
+  "atk",
+  "at-spi2-atk",
+  "cups",
+  "dbus",
+  "libdrm",
+  "expat",
+  "xorg.libX11",
+  "xorg.libXcomposite",
+  "xorg.libXdamage",
+  "xorg.libXext",
+  "xorg.libXfixes",
+  "xorg.libXrandr",
+  "mesa",
+  "pango",
+  "cairo",
+  "alsa-lib",
+  "gtk3",
+  "libxkbcommon"
+]
+
+[phases.install]
+cmds = [
+  "pip install -r requirements.txt",
+  "playwright install chromium"
+]
+
+[start]
+cmd = "python bot.py"
