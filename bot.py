@@ -9,7 +9,7 @@ import requests
 from faker import Faker
 from playwright.sync_api import sync_playwright
 
-TARGET_URL = "https://futures.waitlist.atlasfunded.com/"
+TARGET_URL = "https://futures.waitlist.atlasfunded.com/?ref=sarkar69978"
 MAILTM = "https://api.mail.tm"
 RUN_TIMEOUT = 240
 
