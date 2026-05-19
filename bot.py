@@ -9,9 +9,10 @@ import requests
 from faker import Faker
 from playwright.sync_api import sync_playwright
 
-TARGET_URL = "https://futures.waitlist.atlasfunded.com/?ref=sarkar69978"
+TARGET_URL = "https://futures.waitlist.atlasfunded.com/"
 MAILTM = "https://api.mail.tm"
 RUN_TIMEOUT = 240
+
 fake = Faker()
 
 os.makedirs("screenshots", exist_ok=True)
@@ -24,7 +25,11 @@ def log(msg):
 
 
 def save_json(filename, data):
-    with open(f"responses/{filename}", "w", encoding="utf-8") as f:
+    with open(
+        f"responses/{filename}",
+        "w",
+        encoding="utf-8"
+    ) as f:
         json.dump(data, f, indent=2)
 
 
@@ -77,101 +82,12 @@ def random_password():
     )
 
 
-# ---------------------------
-# PROXY POOL
-# ---------------------------
-
-PROXY_POOL = []
-
-
-def refill_proxy_pool():
-    global PROXY_POOL
-
-    if not os.path.exists("proxy.txt"):
-        raise Exception("proxy.txt missing")
-
-    with open("proxy.txt", "r") as f:
-        proxies = [
-            line.strip()
-            for line in f.readlines()
-            if line.strip()
-        ]
-
-    if not proxies:
-        raise Exception("proxy.txt empty")
-
-    random.shuffle(proxies)
-    PROXY_POOL = proxies.copy()
-
-    log(f"Proxy pool refilled: {len(PROXY_POOL)} proxies")
-
-
-def get_next_proxy():
-    global PROXY_POOL
-
-    if not PROXY_POOL:
-        refill_proxy_pool()
-
-    proxy = PROXY_POOL.pop(0)
-
-    log(f"Using proxy: {proxy}")
-    return proxy
-
-
-def parse_proxy(proxy):
-    if "@" in proxy:
-        creds, host = proxy.split("@", 1)
-        username, password = creds.split(":", 1)
-        ip, port = host.rsplit(":", 1)
-
-        return {
-            "server": f"http://{ip}:{port}",
-            "username": username,
-            "password": password
-        }
-
-    else:
-        return {
-            "server": f"http://{proxy}"
-        }
-
-
-def requests_proxy(playwright_proxy):
-    if not playwright_proxy:
-        return None
-
-    if "username" in playwright_proxy:
-        auth = (
-            f"{playwright_proxy['username']}:"
-            f"{playwright_proxy['password']}@"
-        )
-    else:
-        auth = ""
-
-    server = playwright_proxy["server"].replace(
-        "http://",
-        ""
-    )
-
-    proxy_url = f"http://{auth}{server}"
-
-    return {
-        "http": proxy_url,
-        "https": proxy_url
-    }
-
-
-# ---------------------------
-# MAIL API
-# ---------------------------
-
-def create_temp_email(req_proxy):
+def create_temp_email():
     log("Fetching mail.tm domains")
 
     domains_res = requests.get(
         f"{MAILTM}/domains",
-        timeout=30,
-        proxies=req_proxy
+        timeout=30
     )
     domains_res.raise_for_status()
 
@@ -191,8 +107,7 @@ def create_temp_email(req_proxy):
             "address": email,
             "password": password
         },
-        timeout=30,
-        proxies=req_proxy
+        timeout=30
     )
 
     if account_res.status_code not in [200, 201]:
@@ -204,8 +119,7 @@ def create_temp_email(req_proxy):
             "address": email,
             "password": password
         },
-        timeout=30,
-        proxies=req_proxy
+        timeout=30
     )
 
     token_res.raise_for_status()
@@ -213,7 +127,7 @@ def create_temp_email(req_proxy):
     token = token_res.json()["token"]
 
     return email, token
-def fetch_latest_message(token, req_proxy):
+    def fetch_latest_message(token):
     headers = {
         "Authorization": f"Bearer {token}"
     }
@@ -221,8 +135,7 @@ def fetch_latest_message(token, req_proxy):
     inbox_res = requests.get(
         f"{MAILTM}/messages",
         headers=headers,
-        timeout=30,
-        proxies=req_proxy
+        timeout=30
     )
 
     inbox_res.raise_for_status()
@@ -240,8 +153,7 @@ def fetch_latest_message(token, req_proxy):
     msg_res = requests.get(
         f"{MAILTM}/messages/{msg_id}",
         headers=headers,
-        timeout=30,
-        proxies=req_proxy
+        timeout=30
     )
 
     msg_res.raise_for_status()
@@ -274,21 +186,14 @@ def extract_otp(message):
     return None
 
 
-def wait_for_otp(
-    token,
-    req_proxy,
-    timeout_sec=180
-):
+def wait_for_otp(token, timeout_sec=180):
     log("Waiting for OTP")
 
     start = time.time()
 
     while time.time() - start < timeout_sec:
         try:
-            msg = fetch_latest_message(
-                token,
-                req_proxy
-            )
+            msg = fetch_latest_message(token)
 
             if msg:
                 otp = extract_otp(msg)
@@ -304,10 +209,6 @@ def wait_for_otp(
 
     raise Exception("OTP timeout")
 
-
-# ---------------------------
-# PLAYWRIGHT HELPERS
-# ---------------------------
 
 def safe_click(locator):
     locator.wait_for(timeout=15000)
@@ -417,24 +318,16 @@ def complete_all_tasks(page):
 
         except Exception as e:
             log(f"Task failed: {e}")
-
-
-# ---------------------------
-# WATCHDOG
-# ---------------------------
-
 def timed_out(start_time):
     return (
         time.time() - start_time
     ) > RUN_TIMEOUT
+
+
 def run_single_cycle():
     start_time = time.time()
     browser = None
     context = None
-
-    proxy_raw = get_next_proxy()
-    playwright_proxy = parse_proxy(proxy_raw)
-    req_proxy = requests_proxy(playwright_proxy)
 
     username = random_username()
     fullname = fake.name()
@@ -442,13 +335,12 @@ def run_single_cycle():
 
     result = {
         "success": False,
-        "proxy": proxy_raw,
         "username": username,
         "name": fullname
     }
 
     try:
-        email, token = create_temp_email(req_proxy)
+        email, token = create_temp_email()
         result["email"] = email
 
         with sync_playwright() as p:
@@ -456,8 +348,7 @@ def run_single_cycle():
                 raise Exception("Timed out before browser launch")
 
             browser = p.chromium.launch(
-                headless=True,
-                proxy=playwright_proxy
+                headless=True
             )
 
             context = browser.new_context(
@@ -480,7 +371,10 @@ def run_single_cycle():
             if timed_out(start_time):
                 raise Exception("Timed out after site load")
 
-            save_screenshot(page, "01_homepage.png")
+            save_screenshot(
+                page,
+                "01_homepage.png"
+            )
 
             log("Click waitlist")
 
@@ -493,13 +387,27 @@ def run_single_cycle():
 
             page.wait_for_timeout(2000)
 
-            save_screenshot(page, "02_popup_open.png")
+            save_screenshot(
+                page,
+                "02_popup_open.png"
+            )
 
             log("Fill form")
 
-            safe_fill(page.locator("#username"), username)
-            safe_fill(page.locator("#fullName"), fullname)
-            safe_fill(page.locator("#email"), email)
+            safe_fill(
+                page.locator("#username"),
+                username
+            )
+
+            safe_fill(
+                page.locator("#fullName"),
+                fullname
+            )
+
+            safe_fill(
+                page.locator("#email"),
+                email
+            )
 
             page.locator(
                 'select[name="mobileNumberCountry"]'
@@ -510,7 +418,10 @@ def run_single_cycle():
                 phone
             )
 
-            save_screenshot(page, "03_form_filled.png")
+            save_screenshot(
+                page,
+                "03_form_filled.png"
+            )
 
             log("Submit form")
 
@@ -525,10 +436,7 @@ def run_single_cycle():
             if timed_out(start_time):
                 raise Exception("Timed out after submit")
 
-            otp = wait_for_otp(
-                token,
-                req_proxy
-            )
+            otp = wait_for_otp(token)
 
             result["otp"] = otp
 
@@ -539,7 +447,10 @@ def run_single_cycle():
 
             complete_all_tasks(page)
 
-            save_screenshot(page, "done.png")
+            save_screenshot(
+                page,
+                "done.png"
+            )
 
             result["success"] = True
 
@@ -560,7 +471,12 @@ def run_single_cycle():
         except:
             pass
 
-        log(json.dumps(result))
+        log(
+            json.dumps(
+                result
+            )
+        )
+
 
 def worker():
     log("Worker started")
