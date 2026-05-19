@@ -25,75 +25,43 @@ def log(msg):
 
 
 def save_json(filename, data):
-    with open(
-        f"responses/{filename}",
-        "w",
-        encoding="utf-8"
-    ) as f:
+    with open(f"responses/{filename}", "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
 def save_screenshot(page, filename):
     try:
-        page.screenshot(
-            path=f"screenshots/{filename}",
-            full_page=True
-        )
-    except:
+        page.screenshot(path=f"screenshots/{filename}", full_page=True)
+    except Exception:
         pass
 
 
 def dump_html(page):
     try:
-        with open(
-            "html_dump/error.html",
-            "w",
-            encoding="utf-8"
-        ) as f:
+        with open("html_dump/error.html", "w", encoding="utf-8") as f:
             f.write(page.content())
-    except:
+    except Exception:
         pass
 
 
 def random_username():
-    return "".join(
-        random.choices(
-            string.ascii_lowercase,
-            k=8
-        )
-    ) + str(random.randint(100, 999))
+    return "".join(random.choices(string.ascii_lowercase, k=8)) + str(random.randint(100, 999))
 
 
 def random_phone():
-    return "98765" + "".join(
-        random.choices(
-            string.digits,
-            k=5
-        )
-    )
+    return "98765" + "".join(random.choices(string.digits, k=5))
 
 
 def random_password():
-    return "".join(
-        random.choices(
-            string.ascii_letters + string.digits,
-            k=14
-        )
-    )
+    return "".join(random.choices(string.ascii_letters + string.digits, k=14))
 
 
 def create_temp_email():
     log("Fetching mail.tm domains")
-
-    domains_res = requests.get(
-        f"{MAILTM}/domains",
-        timeout=30
-    )
+    domains_res = requests.get(f"{MAILTM}/domains", timeout=30)
     domains_res.raise_for_status()
-
     domains = domains_res.json()
     save_json("domains.json", domains)
-
     domain = domains["hydra:member"][0]["domain"]
 
     email = f"{random_username()}@{domain}"
@@ -103,105 +71,65 @@ def create_temp_email():
 
     account_res = requests.post(
         f"{MAILTM}/accounts",
-        json={
-            "address": email,
-            "password": password
-        },
-        timeout=30
+        json={"address": email, "password": password},
+        timeout=30,
     )
-
     if account_res.status_code not in [200, 201]:
         raise Exception(account_res.text)
 
     token_res = requests.post(
         f"{MAILTM}/token",
-        json={
-            "address": email,
-            "password": password
-        },
-        timeout=30
+        json={"address": email, "password": password},
+        timeout=30,
     )
-
     token_res.raise_for_status()
 
-    token = token_res.json()["token"]
+    return email, token_res.json()["token"]
 
-    return email, token
-    def fetch_latest_message(token):
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
 
-    inbox_res = requests.get(
-        f"{MAILTM}/messages",
-        headers=headers,
-        timeout=30
-    )
+def fetch_latest_message(token):
+    headers = {"Authorization": f"Bearer {token}"}
 
+    inbox_res = requests.get(f"{MAILTM}/messages", headers=headers, timeout=30)
     inbox_res.raise_for_status()
-
     inbox = inbox_res.json()
     save_json("inbox.json", inbox)
 
     messages = inbox.get("hydra:member", [])
-
     if not messages:
         return None
 
     msg_id = messages[0]["id"]
-
-    msg_res = requests.get(
-        f"{MAILTM}/messages/{msg_id}",
-        headers=headers,
-        timeout=30
-    )
-
+    msg_res = requests.get(f"{MAILTM}/messages/{msg_id}", headers=headers, timeout=30)
     msg_res.raise_for_status()
-
     msg = msg_res.json()
     save_json("email_message.json", msg)
-
     return msg
 
 
 def extract_otp(message):
     text = message.get("text", "") or ""
-
     html = ""
-
-    if message.get("html"):
-        if isinstance(message["html"], list):
-            html = message["html"][0]
+    if message.get("html") and isinstance(message["html"], list):
+        html = message["html"][0]
 
     combined = text + "\n" + html
-
-    match = re.search(
-        r"\b(\d{4,8})\b",
-        combined
-    )
-
-    if match:
-        return match.group(1)
-
-    return None
+    match = re.search(r"\b(\d{4,8})\b", combined)
+    return match.group(1) if match else None
 
 
 def wait_for_otp(token, timeout_sec=180):
     log("Waiting for OTP")
-
     start = time.time()
 
     while time.time() - start < timeout_sec:
         try:
             msg = fetch_latest_message(token)
-
             if msg:
                 otp = extract_otp(msg)
-
                 if otp:
                     log(f"OTP received: {otp}")
                     return otp
-
         except Exception as e:
             log(f"OTP polling error: {e}")
 
@@ -222,106 +150,58 @@ def safe_fill(locator, value):
 
 def enter_otp(page, otp):
     log("Entering OTP")
-
-    otp_input = page.locator(
-        "input[placeholder='Enter OTP']"
-    )
-
+    otp_input = page.locator("input[placeholder='Enter OTP']")
     safe_fill(otp_input, otp)
+    save_screenshot(page, "otp_filled.png")
 
-    save_screenshot(
-        page,
-        "otp_filled.png"
-    )
-
-    verify_btn = page.get_by_role(
-        "button",
-        name="Verify"
-    )
-
+    verify_btn = page.get_by_role("button", name="Verify")
     safe_click(verify_btn)
 
-    log("OTP verify clicked")
-
-    page.wait_for_selector(
-        "text=Completed tasks",
-        timeout=30000
-    )
-
-    save_screenshot(
-        page,
-        "dashboard_loaded.png"
-    )
+    page.wait_for_selector("text=Completed tasks", timeout=30000)
+    save_screenshot(page, "dashboard_loaded.png")
 
 
 def complete_all_tasks(page):
     log("Completing tasks")
+    page.wait_for_selector("text=Completed tasks", timeout=30000)
 
-    page.wait_for_selector(
-        "text=Completed tasks",
-        timeout=30000
-    )
-
-    task_buttons = page.locator(
-        "div:has-text('Completed tasks') button"
-    )
-
+    task_buttons = page.locator("div:has-text('Completed tasks') button")
     total = task_buttons.count()
-
     log(f"Found {total} buttons")
 
     for i in range(total):
         try:
             btn = task_buttons.nth(i)
-
             if not btn.is_visible():
                 continue
 
-            log(f"Task {i+1}")
-
-            with page.context.expect_page(
-                timeout=15000
-            ) as popup:
+            with page.context.expect_page(timeout=15000) as popup:
                 btn.click(force=True)
 
             new_tab = popup.value
-
             try:
-                new_tab.wait_for_load_state(
-                    "domcontentloaded",
-                    timeout=10000
-                )
-
+                new_tab.wait_for_load_state("domcontentloaded", timeout=10000)
                 time.sleep(3)
                 new_tab.close()
-
-            except:
+            except Exception:
                 pass
 
             page.bring_to_front()
             page.wait_for_timeout(5000)
 
-            verify = page.locator(
-                "button:has-text('Verify')"
-            )
-
+            verify = page.locator("button:has-text('Verify')")
             if verify.count() > 0:
                 verify.first.click(force=True)
-                log(f"Verified task {i+1}")
 
-            save_screenshot(
-                page,
-                f"task_{i+1}.png"
-            )
-
+            save_screenshot(page, f"task_{i+1}.png")
             page.wait_for_timeout(3000)
 
         except Exception as e:
             log(f"Task failed: {e}")
+
+
 def timed_out(start_time):
-    return (
-        time.time() - start_time
-    ) > RUN_TIMEOUT
+    return (time.time() - start_time) > RUN_TIMEOUT
 
 
 def run_single_cycle():
@@ -336,7 +216,7 @@ def run_single_cycle():
     result = {
         "success": False,
         "username": username,
-        "name": fullname
+        "name": fullname,
     }
 
     try:
@@ -347,146 +227,69 @@ def run_single_cycle():
             if timed_out(start_time):
                 raise Exception("Timed out before browser launch")
 
-            browser = p.chromium.launch(
-                headless=True
-            )
-
-            context = browser.new_context(
-                viewport={
-                    "width": 1440,
-                    "height": 1200
-                }
-            )
-
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(viewport={"width": 1440, "height": 1200})
             page = context.new_page()
 
-            log("Opening site")
+            page.goto(TARGET_URL, wait_until="networkidle", timeout=60000)
+            save_screenshot(page, "01_homepage.png")
 
-            page.goto(
-                TARGET_URL,
-                wait_until="networkidle",
-                timeout=60000
-            )
-
-            if timed_out(start_time):
-                raise Exception("Timed out after site load")
-
-            save_screenshot(
-                page,
-                "01_homepage.png"
-            )
-
-            log("Click waitlist")
-
-            safe_click(
-                page.get_by_role(
-                    "button",
-                    name="Join the Waitlist"
-                )
-            )
-
+            safe_click(page.get_by_role("button", name="Join the Waitlist"))
             page.wait_for_timeout(2000)
+            save_screenshot(page, "02_popup_open.png")
 
-            save_screenshot(
-                page,
-                "02_popup_open.png"
-            )
+            safe_fill(page.locator("#username"), username)
+            safe_fill(page.locator("#fullName"), fullname)
+            safe_fill(page.locator("#email"), email)
+            page.locator('select[name="mobileNumberCountry"]').select_option("IN")
+            safe_fill(page.locator("#mobileNumber"), phone)
+            save_screenshot(page, "03_form_filled.png")
 
-            log("Fill form")
-
-            safe_fill(
-                page.locator("#username"),
-                username
-            )
-
-            safe_fill(
-                page.locator("#fullName"),
-                fullname
-            )
-
-            safe_fill(
-                page.locator("#email"),
-                email
-            )
-
-            page.locator(
-                'select[name="mobileNumberCountry"]'
-            ).select_option("IN")
-
-            safe_fill(
-                page.locator("#mobileNumber"),
-                phone
-            )
-
-            save_screenshot(
-                page,
-                "03_form_filled.png"
-            )
-
-            log("Submit form")
-
-            safe_click(
-                page.locator(
-                    "button[type='submit']"
-                )
-            )
-
+            safe_click(page.locator("button[type='submit']"))
             page.wait_for_timeout(4000)
 
-            if timed_out(start_time):
-                raise Exception("Timed out after submit")
-
             otp = wait_for_otp(token)
-
             result["otp"] = otp
 
             enter_otp(page, otp)
-
-            if timed_out(start_time):
-                raise Exception("Timed out after OTP")
-
             complete_all_tasks(page)
-
-            save_screenshot(
-                page,
-                "done.png"
-            )
+            save_screenshot(page, "done.png")
 
             result["success"] = True
 
     except Exception as e:
         result["error"] = str(e)
         result["trace"] = traceback.format_exc()
+        try:
+            if 'page' in locals():
+                save_screenshot(page, "error.png")
+                dump_html(page)
+        except Exception:
+            pass
 
     finally:
         try:
             if context:
                 context.close()
-        except:
+        except Exception:
             pass
 
         try:
             if browser:
                 browser.close()
-        except:
+        except Exception:
             pass
 
-        log(
-            json.dumps(
-                result
-            )
-        )
+        log(json.dumps(result))
 
 
 def worker():
     log("Worker started")
-
     while True:
         try:
             run_single_cycle()
         except Exception as e:
             log(f"Cycle crash: {e}")
-
         time.sleep(5)
 
 
